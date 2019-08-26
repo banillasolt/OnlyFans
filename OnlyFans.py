@@ -8,6 +8,8 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.request import urlretrieve
 from datetime import datetime
+import logging
+import inspect
 
 # Open settings.json and fill in mandatory information for the script to work
 json_data = json.load(open('settings.json'))
@@ -30,6 +32,8 @@ session = requests.Session()
 session.cookies.set(**auth_cookie)
 session.headers = {
     'User-Agent': user_agent, 'Referer': 'https://onlyfans.com/'}
+logging.basicConfig(filename='errors.log', level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(name)s %(message)s')
 
 
 def link_check():
@@ -103,6 +107,7 @@ def reformat(directory2, file_name2, ext, date):
 
 
 def media_scraper(link, location, directory, only_links):
+    logger = logging.getLogger(inspect.stack()[0][3])
     next_page = True
     next_offset = 0
     media_set = dict([])
@@ -114,17 +119,22 @@ def media_scraper(link, location, directory, only_links):
         if not y:
             break
         for media_api in y:
-            for media in media_api["media"]:
-                if "source" in media:
-                    file = media["source"]["source"]
-                    if "ca2.convert" in file:
-                        file = media["preview"]
-                    media_set[media_count] = {}
-                    media_set[media_count]["link"] = file
-                    dt = datetime.fromisoformat(media_api["postedAt"]).replace(tzinfo=None).strftime('%d-%m-%Y')
-                    media_set[media_count]["text"] = media_api["text"]
-                    media_set[media_count]["postedAt"] = dt
-                    media_count += 1
+            try:
+                for media in media_api["media"]:
+                    if "source" in media:
+                        file = media["source"]["source"]
+                        if "ca2.convert" in file:
+                            file = media["preview"]
+                        media_set[media_count] = {}
+                        media_set[media_count]["link"] = file
+                        dt = datetime.fromisoformat(media_api["postedAt"]).replace(tzinfo=None).strftime('%d-%m-%Y')
+                        media_set[media_count]["text"] = media_api["text"]
+                        media_set[media_count]["postedAt"] = dt
+                        media_count += 1
+            except Exception as e:
+                logger.error(e)
+                logger.error(y)
+                exit()
         next_offset = offset + 100
         link = link.replace("offset="+str(offset), "offset="+str(next_offset))
     # path = reformat(media_set)
